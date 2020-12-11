@@ -1,0 +1,36 @@
+node {
+	stage ('Checkout...') {
+		checkout([
+			$class: 'GitSCM',
+			branches: [[name: '*/master']],
+			userRemoteConfigs: [[url: 'https://github.com/ibm-datapower/datapower-configuration-manager.git']]
+		])
+	}
+	stage ('Build...') {
+		env.PATH = "${tool 'Default'}/bin:${env.PATH}"
+		sh 'ant'
+	}
+	stage ('Push to UCD...') {
+		step([$class: 'UCDeployPublisher',     // Class name of the Jenkins pipeline
+			siteName: 'Docker IBM UrbanCode Deploy Server',                // Name of UrbanCode Deploy server
+			component: [                      // Actions to perform
+				$class: 'com.urbancode.jenkins.plugins.ucdeploy.VersionHelper$VersionBlock',
+				componentName: 'UCD - Pipeline',    // Component name
+				createComponent: [           // Create new component
+					$class: 'com.urbancode.jenkins.plugins.ucdeploy.ComponentHelper$CreateComponentBlock',
+					componentTemplate: '',   // Template name to base component on
+					componentApplication: 'Jenkins Pipeline Snapshot Demo'  // Name of application to add component
+				],                          
+				delivery: [                  //  Perform a componetn version input
+					$class: 'com.urbancode.jenkins.plugins.ucdeploy.DeliveryHelper$Push',
+					pushVersion: '${BUILD_NUMBER}',  //  Name to assign component version
+					baseDir: '/var/jenkins_home/workspace/JOB/dist',  // Base directory containing artifacts
+					fileIncludePatterns: '*.zip',    // Files to include using Regex
+					fileExcludePatterns: '',         // Files to exclude using Regex
+					pushProperties: 'jenkins.server=Local\njenkins.reviewed=false', // Assign properties to new component version
+					pushDescription: 'Pushed from Jenkins'  //  Description for component version
+				]
+			]
+		])
+	}
+}
